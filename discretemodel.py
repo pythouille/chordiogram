@@ -242,7 +242,6 @@ def coord_subtri(id, max,
                             x_c = x_c,
                             y_c = y_c))
 
-
 def partition(nb_elements=113,nb_parts=5):
     """
     Generates a random partition 
@@ -256,6 +255,58 @@ def partition(nb_elements=113,nb_parts=5):
         res.append(part)
     return res
 
+
+def train_pre_model(track_list, annotations, partition, resolution=2, chroma='hpcp', verbose=True):
+    """
+    Builds for each folder of the given partition of tracks the
+    5 discrete hexagram models corresponding to the analysis of
+    chord chroma contents
+    """
+    #initialization of the structure
+    nb_folder = len(partition)
+    pre_model = np.zeros((nb_folder,5,6,4**(resolution)),dtype=float)
+    
+    for folder in range(nb_folder):
+        if verbose:
+            print('### Training folder', folder+1)
+        for i1 in partition[folder]:
+            track = track_list[i1]
+            if verbose:
+                print('Analysing', track)
+            annot = annotations[i1]
+            tuning, beats, roots, jazz5 = info_json(annot)
+            if chroma == 'hpcp':
+                V = computeHPCP(track, beats, tuningFrequency=tuning)
+            else:
+                raise("unknown chroma extraction, please choose 'hpcp' or 'nnls'")
+            for i2, chd in enumerate(jazz5):
+                if chd != 'N' and chd != 'unclassified':
+                    v = V[i2]
+                    root = root_subst[roots[i2]]
+                    for ternary in range(6):
+                        id_triangle = sub_tr_down(
+                            v[root],
+                            v[(root+degrees.index(discr_deg[ternary]))%12],
+                            v[(root+degrees.index(discr_deg[(ternary+1)%6]))%12],
+                            resolution=resolution
+                            )
+                        #increment the matching triangle
+                        pre_model[folder][name_jazz5.index(chd)][ternary][id_triangle] += 1
+    return(pre_model)
+
+def build_model(pre_model, n, nb_folder=5):
+    """
+    Builds the training discrete model to test folder 'n';
+    Normalization should be applied after its computation
+    """
+    size = len(pre_model[0][0][0])
+    #sum of the (nb_folder - 1) sub models for training
+    model = np.zeros((5,6,size),dtype=float)
+    for i in range(nb_folder):
+        if i != n: #folder n is kept for testing
+            model += pre_model[i]
+
+    return(model)
 
 def norm_ternary(model):
     """
@@ -304,60 +355,6 @@ def norm_hexagram(model):
                 for tri in range(size):
                     model[hex][ter][tri] /= total
 
-
-def train_pre_model(track_list, annotations, partitions, resolution=2, chroma='hpcp', verbose=True):
-    """
-    Builds for each folder of the given partition of tracks the
-    5 discrete hexagram models corresponding to the analysis of
-    chord chroma contents
-    """
-    #initialization of the structure
-    nb_folder = len(partition)
-    pre_model = np.zeros((nb_folder,5,6,4**(resolution)),dtype=float)
-    
-    for folder in range(nb_folder):
-        if verbose:
-            print('### Training folder', folder+1)
-        for i1 in partitions[folder]:
-            track = track_list[i1]
-            if verbose:
-                print('Analysing', track)
-            annot = annotations[i1]
-            tuning, beats, roots, jazz5 = info_json(annot)
-            if chroma == 'hpcp':
-                V = computeHPCP(track, beats, tuningFrequency=tuning)
-            else:
-                raise("unknown chroma extraction, please choose 'hpcp' or 'nnls'")
-            for i2, chd in enumerate(jazz5):
-                if chd != 'N' and chd != 'unclassified':
-                    v = V[i2]
-                    root = root_subst[roots[i2]]
-                    for ternary in range(6):
-                        id_triangle = sub_tr_down(
-                            v[root],
-                            v[(root+degrees.index(discr_deg[ternary]))%12],
-                            v[(root+degrees.index(discr_deg[(ternary+1)%6]))%12],
-                            resolution=resolution
-                            )
-                        #increment the matching triangle
-                        pre_model[folder][name_jazz5.index(chd)][ternary][id_triangle] += 1
-    return(pre_model)
-
-def build_model(pre_model, n, nb_folder=5):
-    """
-    Builds the training discrete model to test folder 'n';
-    Normalization should be applied after its computation
-    """
-    size = len(pre_model[0][0][0])
-    #sum of the (nb_folder - 1) sub models for training
-    model = np.zeros((5,6,size),dtype=float)
-    for i in range(nb_folder):
-        if i != n: #folder n is kept for testing
-            model += pre_model[i]
-
-    return(model)
-
-
 def print_model(model, quality=['maj','min','dom','dim','hdim7']):
     """
     Plots separately the hexagram models for given chords
@@ -383,3 +380,104 @@ def print_model(model, quality=['maj','min','dom','dim','hdim7']):
                     t1 = plt.Polygon(T, color=(1,(1-prop),(1-prop)))
                     ax.add_patch(t1)
         plt.show()
+
+def predict(chroma_vector, model, weight='max'):
+    """
+    Returns the ordered list of the 60 chord classes and their score,
+    from the best predicted chord to the least,
+    using discrete hexagram model
+    """
+    resolution = len(model[0][0])
+
+    rep_q = {}
+    for r in range(12): #each note as first degree / possible root
+        root_name = notes[r]
+        for chd in range(5): #each jazz5 chord
+            p = 1
+            for ter in range(6):
+                c1 = chroma_vector[r]
+                c2 = chroma_vector[(r+degrees.index(discr_deg[ter]))%12]
+                c3 = chroma_vector[(r+degrees.index(discr_deg[(ter+1)%6]))%12]
+                area = sub_tr_down(c1, c2, c3, resolution=resolution)
+                if weight == 'max':
+                    p *= model[chd][ter][area] * max(c1,c2,c3)
+                elif weight == 'sum':
+                    p *= model[chd][ter][area] * (c1 + c2 + c3)
+                elif weight == 'none':
+                    p *= model[chd][ter][area]
+                else:
+                    raise("unknown weight, please choose 'max', 'sum' or 'none'")
+            rep_q[root_name + ' ' + name_jazz5[chd]] = p
+    #build and order the list
+    lst_q = [[k, v] for k, v in rep_q.items()]
+    lst_q.sort(key=lambda e: e[1], reverse = True)
+    return(lst_q)
+
+def ACE_discrete(chromagram, ground_truth, model):
+    res = {}
+    correct = 0 #perfect prediction
+    rank = 0 #rank of the ground truth in the prediction
+    dist_first = 0 #distance between ground truth and first predicted
+    three_first = 0 #ground truth in the three most probable
+    ten_first = 0 #ground truth in the ten most probable
+
+    i_gtruth = 0
+    i_vector = 0
+    time1 = 0. # beginning of the studied segment
+    time2 = 0. # end of the segment 
+    total_duration = ground_truth[-1][0] #duration without unclassified chords
+    predicted = predict_binary(chromagram[i_vector][1])
+    while abs(time2-ground_truth[-1][0]) > 1e-2:
+        #update ground truth and/or prediction for the next segment
+        if ground_truth[i_gtruth][0] - chromagram[i_vector][0] > 0:
+            #next chroma vector
+            i_vector += 1
+            time2 = ground_truth[i_gtruth][0]
+            duration = time2 - time1
+            predicted = predict(chromagram[i_vector][1], model)
+            if ground_truth[i_gtruth][2] == 'unclassified':
+                total_duration -= duration
+            else:
+                eval = evaluate(predicted, ground_truth[i_gtruth][1], ground_truth[i_gtruth][2])
+        elif ground_truth[i_gtruth][0] - chromagram[i_vector][0] < 0:
+            #next ground truth
+            i_gtruth += 1
+            time2 = chromagram[i_vector][0]
+            duration = time2 - time1
+            if ground_truth[i_gtruth][2] == 'unclassified':
+                total_duration -= duration
+            else:
+                eval = evaluate(predicted, ground_truth[i_gtruth][1], ground_truth[i_gtruth][2])
+        else:
+            #next ground truth and chroma vector
+            i_gtruth += 1
+            i_vector += 1
+            time2 = chromagram[i_vector][0]
+            duration = time2 - time1
+            predicted = predict(chromagram[i_vector][1], model)
+            if ground_truth[i_gtruth][2] == 'unclassified':
+                total_duration -= duration
+            else:
+                eval = evaluate(predicted, ground_truth[i_gtruth][1], ground_truth[i_gtruth][2])
+
+        if ground_truth[i_gtruth][2] != 'unclassified':
+            if ground_truth[i_gtruth][2] != 'N':
+                if eval['ground-truth rank'] == 0:
+                    correct += duration
+                if eval['ground-truth rank'] < 3:
+                    three_first += duration
+                if eval['ground-truth rank'] < 10:
+                    ten_first += duration
+                rank += duration * eval['ground-truth rank']
+            dist_first += duration * eval['first rank distance']
+
+        time1 = time2
+
+    res['CSR'] = 100*correct/total_duration
+    res['average rank'] = rank/total_duration
+    res['distance first'] = dist_first/total_duration
+    res['three first'] = 100*three_first/total_duration
+    res['ten first'] = 100*ten_first/total_duration
+    res['duration'] = total_duration
+
+    return(res)
