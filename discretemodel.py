@@ -2,9 +2,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 from random import shuffle
 
-from annotated_features import info_json
-from audio_features import computeHPCP
-from globals import name_jazz5, root_subst, degrees, discr_deg
+from annotated_features import info_json, info_track, root_jazz5_list
+from audio_features import compute_HPCP
+from evalutation import evaluate
+from globals import degrees, discr_deg, name_jazz5, notes, root_subst
 from hexagram import init_hexagram, rotation_sixth
 
 def sub_tr_down(c1, c2, c3,
@@ -187,8 +188,8 @@ def sub_tr_up(c1, c2, c3, resolution,
 def coord_subtri(id, max,
                  x_a=0,
                  y_a=0,
-                 x_b=-1/sqrt(3),
-                 x_c=1/sqrt(3),
+                 x_b=-1/np.sqrt(3),
+                 x_c=1/np.sqrt(3),
                  y_c=1):
     """
     Returns the coordonates of the sub triangle with given 'id'
@@ -242,6 +243,38 @@ def coord_subtri(id, max,
                             x_c = x_c,
                             y_c = y_c))
 
+def train(track_list, annotations, resolution=2):
+    #construit les 5 hexagrammes résultant de l'apprentissage des accords
+    # track_list : liste des audio
+    # annotations : idem pour les json correspondants
+
+    #initialization of the structure
+    model = np.zeros((5,6,4**resolution),dtype=float)
+    
+    for index, track in enumerate(track_list):
+        print('Analysing', track)
+        annot = annotations[index]
+        tuning, beats, chords = info_json(annot)
+        roots, jazz5 = root_jazz5_list(chords)
+        V = compute_HPCP(track, beats, tuningFrequency=tuning)
+
+        for index, chrd in enumerate(jazz5):
+            if chrd != 'N' and chrd != 'unclassified':
+                v = V[index]
+                root = root_subst[roots[index]]
+                for ternary in range(6):
+                    id_triangle = sub_tr_down(
+                        v[root],
+                        v[(root+degrees.index(discr_deg[ternary]))%12],
+                        v[(root+degrees.index(discr_deg[(ternary+1)%6]))%12],
+                        resolution=resolution
+                    )
+                    #increment the matching triangle
+                    model[name_jazz5.index(chrd)][ternary][id_triangle] += 1
+
+    return(model)
+
+
 def partition(nb_elements=113,nb_parts=5):
     """
     Generates a random partition 
@@ -254,7 +287,6 @@ def partition(nb_elements=113,nb_parts=5):
                   :int(np.floor((i+1)*nb_elements/nb_parts))]
         res.append(part)
     return res
-
 
 def train_pre_model(track_list, annotations, partition, resolution=2, chroma='hpcp', verbose=True):
     """
@@ -274,9 +306,10 @@ def train_pre_model(track_list, annotations, partition, resolution=2, chroma='hp
             if verbose:
                 print('Analysing', track)
             annot = annotations[i1]
-            tuning, beats, roots, jazz5 = info_json(annot)
+            tuning, beats, chords = info_json(annot)
+            roots, jazz5 = root_jazz5_list(chords)
             if chroma == 'hpcp':
-                V = computeHPCP(track, beats, tuningFrequency=tuning)
+                V = compute_HPCP(track, beats, tuningFrequency=tuning)
             else:
                 raise("unknown chroma extraction, please choose 'hpcp' or 'nnls'")
             for i2, chd in enumerate(jazz5):
@@ -292,7 +325,7 @@ def train_pre_model(track_list, annotations, partition, resolution=2, chroma='hp
                             )
                         #increment the matching triangle
                         pre_model[folder][name_jazz5.index(chd)][ternary][id_triangle] += 1
-    return(pre_model)
+    return pre_model
 
 def build_model(pre_model, n, nb_folder=5):
     """
@@ -306,7 +339,7 @@ def build_model(pre_model, n, nb_folder=5):
         if i != n: #folder n is kept for testing
             model += pre_model[i]
 
-    return(model)
+    return model
 
 def norm_ternary(model):
     """
@@ -360,7 +393,7 @@ def print_model(model, quality=['maj','min','dom','dim','hdim7']):
     Plots separately the hexagram models for given chords
     """
     #number of sub triangles in a ternary plot
-    resolution = len(model[0][0])
+    size = len(model[0][0])
     for q_name in quality:
         q = name_jazz5.index(q_name)
         
@@ -370,8 +403,8 @@ def print_model(model, quality=['maj','min','dom','dim','hdim7']):
 
         #plot of the sub triangles
         for ternary in range(6):
-            for tr in range(4**resolution):
-                T = coord_subtri(tr, 4**resolution)
+            for tr in range(size):
+                T = coord_subtri(tr, size)
                 for d in range(3):
                     T[d][0], T[d][1] = rotation_sixth(T[d][0], T[d][1], ternary)
                 m = max(model[q][ternary])
@@ -387,7 +420,9 @@ def predict(chroma_vector, model, weight='max'):
     from the best predicted chord to the least,
     using discrete hexagram model
     """
-    resolution = len(model[0][0])
+    resolution = 0
+    while 4**resolution != len(model[0][0]):
+        resolution += 1
 
     rep_q = {}
     for r in range(12): #each note as first degree / possible root
@@ -411,7 +446,7 @@ def predict(chroma_vector, model, weight='max'):
     #build and order the list
     lst_q = [[k, v] for k, v in rep_q.items()]
     lst_q.sort(key=lambda e: e[1], reverse = True)
-    return(lst_q)
+    return lst_q
 
 def ACE_discrete(chromagram, ground_truth, model):
     res = {}
@@ -426,7 +461,7 @@ def ACE_discrete(chromagram, ground_truth, model):
     time1 = 0. # beginning of the studied segment
     time2 = 0. # end of the segment 
     total_duration = ground_truth[-1][0] #duration without unclassified chords
-    predicted = predict_binary(chromagram[i_vector][1])
+    predicted = predict(chromagram[i_vector][1], model)
     while abs(time2-ground_truth[-1][0]) > 1e-2:
         #update ground truth and/or prediction for the next segment
         if ground_truth[i_gtruth][0] - chromagram[i_vector][0] > 0:
@@ -473,11 +508,46 @@ def ACE_discrete(chromagram, ground_truth, model):
 
         time1 = time2
 
-    res['CSR'] = 100*correct/total_duration
-    res['average rank'] = rank/total_duration
-    res['distance first'] = dist_first/total_duration
-    res['three first'] = 100*three_first/total_duration
-    res['ten first'] = 100*ten_first/total_duration
+    res['CSR'] = 100*correct / total_duration
+    res['average rank'] = rank / total_duration
+    res['distance first'] = dist_first / total_duration
+    res['three first'] = 100*three_first / total_duration
+    res['ten first'] = 100*ten_first / total_duration
     res['duration'] = total_duration
 
-    return(res)
+    return res
+
+
+def cross_validation(track_list, annotations, partition, pre_model, verbose=False):
+    single_results = [{}]*len(track_list)
+    for i in range(5):
+        #creation of the model for the current folder of the partition
+        model = build_model(pre_model, i)
+        if verbose:
+            print('Modèle folder', i+1, ':')
+            print(np.array2string(model, separator=',', formatter={'float_kind':lambda x: "%.4f" % x}, threshold=2500))
+        #test of the tracks
+        for j in partition[i]:
+            if verbose:
+                print('Testing ', track_list[j])
+            chromagram, ground_truth = info_track(track_list[j], annotations[j])
+            separated_results[j] = ACE_discrete(chromagram, ground_truth, model)
+
+    if verbose:
+        for i, r in enumerate(single_results):
+            print(track_list[i],':')
+            print(r)
+    
+    #global statistics
+    total_duration = 0
+    final_results = {'CSR': 0, 'ground-truth rank': 0, 'first rank distance': 0}
+    for r in single_results:
+        duration = r['duration']
+        final_results['CSR'] += duration*r['CSR']
+        final_results['average rank'] += duration*r['average rank']
+        final_results['distance first'] += duration*r['distance first']
+        total_duration += duration
+    for key in final_results:
+        final_results[key] /= total_duration
+    
+    return(final_results)

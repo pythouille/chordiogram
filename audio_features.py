@@ -20,15 +20,15 @@ def compute_beats(filename):
 
 #inspired by https://github.com/mip-frontiers/summer-school-2019/blob/master/ChordEstimation/ACE_MIP-Frontiers.ipynb
 def compute_HPCP(filename, beats,
-                 tuningFrequency=440.0,
-                 beats_per_frame=1,
-                 frameSize=16384,
-                 hopSize=8192):
+                 tuning_frequency=440.0,
+                 beatsperframe=1,
+                 framesize=16384,
+                 hopsize=8192):
     audio = ess.MonoLoader(filename=filename, sampleRate=44100)()
     
     frameGenerator = ess.FrameGenerator(audio, 
-                                        frameSize=frameSize,
-                                        hopSize=hopSize,
+                                        frameSize=framesize,
+                                        hopSize=hopsize,
                                         startFromZero=True)
     window = ess.Windowing(type='blackmanharris62')
     spectrum = ess.Spectrum()
@@ -45,7 +45,7 @@ def compute_HPCP(filename, beats,
                     sampleRate=44100,
                     maxFrequency=5000,
                     minFrequency=40,
-                    referenceFrequency=tuningFrequency,
+                    referenceFrequency=tuning_frequency,
                     nonLinear=False,
                     harmonics=8,
                     size=12)
@@ -59,25 +59,25 @@ def compute_HPCP(filename, beats,
         hpcp_vector = hpcp(frequencies, w_magnitudes)
         pool.add('hpcp0', hpcp_vector)
 
-    #Averaging per beat
+    #Beat-synchronous averaging
     beat_index = 0
-    saved_vectors = [pool['hpcp0'][0]]*beats_per_frame
+    saved_vectors = [pool['hpcp0'][0]]*beatsperframe
     pool.add('hpcp', saved_vectors[0])
     for i, local_hpcp in enumerate(pool['hpcp0'][1:]):
         if beat_index >= len(beats):
             break
-        if i*hopSize > beats[beat_index]*44100: #entering a new beat
+        if i*hopsize > beats[beat_index]*44100: #enter a new beat
             beat_index += 1
-            hpcp_vector = saved_vectors[0] #taking the finished vector
+            hpcp_vector = saved_vectors[0] #take the finished vector
             if max(hpcp_vector) > 1e-5:
                 hpcp_vector /= max(hpcp_vector) #UnitMax normalization
             pool.add('hpcp', hpcp_vector)
 
             saved_vectors = saved_vectors[1:] #alignment
-            saved_vectors.append(local_hpcp) #beginning next vector
+            saved_vectors.append(local_hpcp) #begin next vector
         else:
             for v in saved_vectors:
-                v += local_hpcp #adding the value to all saved vectors
+                v += local_hpcp #add the value to all saved vectors
     
     return np.roll(pool['hpcp'], shift=-3, axis=1)
 
@@ -112,35 +112,38 @@ def compute_NNLS(filename, beats, beats_per_frame=2, step_size=4096):
         for j in range(tones.size):
             cc[j % 12] = cc[j % 12] + tones[j]
 
-    #Averaging per beat
+    #Beat-synchronous averaging
     beat_index = 0
     saved_vectors = [chroma[0]]*beats_per_frame
     nnls = [saved_vectors[0]]
     for i, local_hpcp in enumerate(chroma[1:]):
         if beat_index >= len(beats):
             break
-        if i*step_size > beats[beat_index]*44100: #entering a new beat
+        if i*step_size > beats[beat_index]*44100: #enter a new beat
             beat_index += 1
-            nnls_vector = saved_vectors[0] #taking the finished vector
+            nnls_vector = saved_vectors[0] #take the finished vector
             if max(nnls_vector) > 1e-5:
                 nnls_vector /= max(nnls_vector) #UnitMax normalization
             nnls.append(nnls_vector)
 
             saved_vectors = saved_vectors[1:] #alignment
-            saved_vectors.append(local_hpcp) #beginning next vector
+            saved_vectors.append(local_hpcp) #begin next vector
         else:
             for v in saved_vectors:
-                v += local_hpcp #adding the value to all saved vectors
+                v += local_hpcp #add the value to all saved vectors
 
     return np.roll(nnls, shift=-3, axis=1)
 
 
+import matplotlib.pyplot as plt
 if __name__ == "__main__":
     test_beats = compute_beats('../sounds/maple_leaf_rag(hyman).flac')
     print('Computed beats for Maple Leaf Rag (Hyman):\n', test_beats)
 
     test_HPCP = compute_HPCP('../sounds/maple_leaf_rag(hyman).flac', test_beats)
-    print('\nComputed HPCP for Maple Leaf Rag (Hyman):\n', test_HPCP)
+    #print('\nComputed HPCP for Maple Leaf Rag (Hyman):\n', test_HPCP)
+    plt.pcolormesh(np.transpose(test_HPCP))
 
     test_NNLS = compute_NNLS('../sounds/maple_leaf_rag(hyman).flac', test_beats)
-    print('\nComputed NNLS for Maple Leaf Rag (Hyman):\n', test_NNLS)
+    #print('\nComputed NNLS for Maple Leaf Rag (Hyman):\n', test_NNLS)
+    plt.pcolormesh(np.transpose(test_NNLS))
