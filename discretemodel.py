@@ -256,7 +256,7 @@ def train(track_list, annotations, resolution=2):
         annot = annotations[index]
         tuning, beats, chords = info_json(annot)
         roots, jazz5 = root_jazz5_list(chords)
-        V = compute_HPCP(track, beats, tuningFrequency=tuning)
+        V = compute_HPCP(track, beats, tuning_frequency=tuning)
 
         for index, chrd in enumerate(jazz5):
             if chrd != 'N' and chrd != 'unclassified':
@@ -309,7 +309,7 @@ def train_pre_model(track_list, annotations, partition, resolution=2, chroma='hp
             tuning, beats, chords = info_json(annot)
             roots, jazz5 = root_jazz5_list(chords)
             if chroma == 'hpcp':
-                V = compute_HPCP(track, beats, tuningFrequency=tuning)
+                V = compute_HPCP(track, beats, tuning_frequency=tuning)
             else:
                 raise("unknown chroma extraction, please choose 'hpcp' or 'nnls'")
             for i2, chd in enumerate(jazz5):
@@ -524,14 +524,14 @@ def cross_validation(track_list, annotations, partition, pre_model, verbose=Fals
         #creation of the model for the current folder of the partition
         model = build_model(pre_model, i)
         if verbose:
-            print('Modèle folder', i+1, ':')
+            print('Model of folder', i+1, ':')
             print(np.array2string(model, separator=',', formatter={'float_kind':lambda x: "%.4f" % x}, threshold=2500))
         #test of the tracks
         for j in partition[i]:
             if verbose:
                 print('Testing ', track_list[j])
             chromagram, ground_truth = info_track(track_list[j], annotations[j])
-            separated_results[j] = ACE_discrete(chromagram, ground_truth, model)
+            single_results[j] = ACE_discrete(chromagram, ground_truth, model)
 
     if verbose:
         for i, r in enumerate(single_results):

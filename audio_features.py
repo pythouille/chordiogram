@@ -139,11 +139,13 @@ import matplotlib.pyplot as plt
 if __name__ == "__main__":
     test_beats = compute_beats('../sounds/maple_leaf_rag(hyman).flac')
     print('Computed beats for Maple Leaf Rag (Hyman):\n', test_beats)
+    
+    fig, ax = plt.subplots(2, 1, figsize=(15,6))
 
     test_HPCP = compute_HPCP('../sounds/maple_leaf_rag(hyman).flac', test_beats)
-    #print('\nComputed HPCP for Maple Leaf Rag (Hyman):\n', test_HPCP)
-    plt.pcolormesh(np.transpose(test_HPCP))
+    ax[0].pcolormesh(np.transpose(test_HPCP))
 
     test_NNLS = compute_NNLS('../sounds/maple_leaf_rag(hyman).flac', test_beats)
-    #print('\nComputed NNLS for Maple Leaf Rag (Hyman):\n', test_NNLS)
-    plt.pcolormesh(np.transpose(test_NNLS))
+    ax[1].pcolormesh(np.transpose(test_NNLS))
+
+    plt.show()
