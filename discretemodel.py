@@ -8,6 +8,7 @@ from evalutation import evaluate
 from globals import degrees, discr_deg, name_jazz5, notes, root_subst
 from hexagram import init_hexagram, rotation_sixth
 
+
 def sub_tr_down(c1, c2, c3,
                 resolution=2,
                 x_a=0,
@@ -100,7 +101,6 @@ def sub_tr_down(c1, c2, c3,
                          new_x_c,
                          new_y_c))
 
-
 def sub_tr_up(c1, c2, c3, resolution,
                 x_a, y_a, x_b, x_c, y_c):
     """
@@ -185,6 +185,7 @@ def sub_tr_up(c1, c2, c3, resolution,
                            new_x_c,
                            new_y_c))
 
+
 def coord_subtri(id, max,
                  x_a=0,
                  y_a=0,
@@ -242,6 +243,7 @@ def coord_subtri(id, max,
                             x_b = x_a,
                             x_c = x_c,
                             y_c = y_c))
+
 
 def train(track_list, annotations, resolution=2):
     #construit les 5 hexagrammes résultant de l'apprentissage des accords
@@ -327,6 +329,7 @@ def train_pre_model(track_list, annotations, partition, resolution=2, chroma='hp
                         pre_model[folder][name_jazz5.index(chd)][ternary][id_triangle] += 1
     return pre_model
 
+
 def build_model(pre_model, n, nb_folder=5):
     """
     Builds the training discrete model to test folder 'n';
@@ -340,6 +343,7 @@ def build_model(pre_model, n, nb_folder=5):
             model += pre_model[i]
 
     return model
+
 
 def norm_ternary(model):
     """
@@ -388,6 +392,7 @@ def norm_hexagram(model):
                 for tri in range(size):
                     model[hex][ter][tri] /= total
 
+
 def print_model(model, quality=['maj','min','dom','dim','hdim7']):
     """
     Plots separately the hexagram models for given chords
@@ -413,6 +418,7 @@ def print_model(model, quality=['maj','min','dom','dim','hdim7']):
                     t1 = plt.Polygon(T, color=(1,(1-prop),(1-prop)))
                     ax.add_patch(t1)
         plt.show()
+
 
 def predict(chroma_vector, model, weight='max'):
     """
@@ -447,6 +453,7 @@ def predict(chroma_vector, model, weight='max'):
     lst_q = [[k, v] for k, v in rep_q.items()]
     lst_q.sort(key=lambda e: e[1], reverse = True)
     return lst_q
+
 
 def ACE_discrete(chromagram, ground_truth, model):
     res = {}

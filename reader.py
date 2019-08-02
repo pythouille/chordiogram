@@ -5,6 +5,7 @@ import pygame
 
 from annotated_features import info_json
 
+
 def match_beat_chord(json):
     """
     Synchronize the beats with the ground-truth chords
@@ -46,7 +47,6 @@ def play_basic(json, audio='none'):
             print(track[i][1])
             i += 1
         sleep(0.01) #pause
-
 
 
 def play_plot(json, audio='none'):
@@ -104,6 +104,7 @@ def play_plot(json, audio='none'):
             ax.text(4.1, 0.02, 'time ->',fontsize=10)
             i += 1
         plt.pause(0.1)
+
 
 if __name__ == "__main__":
     jukebox = {

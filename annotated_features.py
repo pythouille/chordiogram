@@ -5,6 +5,9 @@ from audio_features import compute_beats, compute_HPCP
 from globals import notes, root_subst
 
 def info_json(json_file):
+    """
+    Extract tuning frequency, beats and chord annotations from the json
+    """
     with open(json_file,'r') as inf:
         data = json.load(inf)
 
@@ -145,7 +148,7 @@ def analyse(track):
     Print information about the track :
     number of beats, types and number of chords
     """
-    print('\nRésultat pour', track)
+    print('\n', track, ':')
 
     #initialization of the structure
     d_chords = {"maj": [],

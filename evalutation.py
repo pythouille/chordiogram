@@ -17,6 +17,7 @@ t_tetrads = {
     'dim': [1,0,0,1,0,0,1,0,0,1,0,0],
     'hdim7': [1,0,0,1,0,0,1,0,0,0,1,0]}
 
+
 def dist_triads(root1, jazz5_1, root2, jazz5_2):
     """
     jazz5 maj and min considered as triads, the others as tetrads ;
@@ -43,6 +44,7 @@ def dist_tetrads(root1, jazz5_1, root2, jazz5_2):
             diff += 1
     return diff/2 #with tetrads, diff is always even
 
+
 def order_chord(rep_q, top=20):
     """
     Builds an ordered histogram for chords
@@ -61,6 +63,7 @@ def order_chord(rep_q, top=20):
     ax.set_ylabel('Chord')
     ax.set_title('Most probable chords')
     plt.show()
+
 
 def evaluate(prediction, gt_root, gt_jazz5):
     """
