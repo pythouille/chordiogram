@@ -7,6 +7,7 @@ Tools for chord representation and Audio Chord Estimation.
 - Essentia, version 2.1-beta5-dev : https://essentia.upf.edu/
 - To use NNLS chroma, install vamp plugin from http://isophonics.net/nnls-chroma ; information about installation can be found at https://www.vamp-plugins.org/download.html#install
 - To use chord readers (in reader.py), install pygame : https://www.pygame.org/download.shtml
+- To use MIDI/real audio comparison (in MIDI_features.py), install music21 : http://web.mit.edu/music21/doc/installing/
 
 Version of python used : 3.6.8
 
